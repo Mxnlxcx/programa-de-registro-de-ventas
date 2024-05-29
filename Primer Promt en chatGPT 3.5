@@ -1,0 +1,261 @@
+Nuevo proyecto, desarrollaremos un programa con interfaz grafica en python para la carga de datos de ventas diarias de un local de ventas minoristas.
+
+el formato de los datos sera similar a una tabla de excel, cuya primera columna correspondera a "Fecha", seguido de "Contado", "Vale Obsec", "MP", "Visa", "V Debit", "OCA", "Maestro", "MasterCard", "Amex", "Total Tarjetas", "Total Contado", "Venta".
+
+La columna "Total Tarjetas" debe sumar los valores ingresados en "Visa", "V Debit", "OCA", "Maestro", "MasterCard" y "Amex".
+
+La columna "Total Contado" debe sumar los valores ingresados en "Contado", "Vale Obsec"y "MP".
+
+La columna fecha, debe mostrar fechas a partir del 01-06-2024 con formato DD-MM-AAAA, cada fila debe mostrar los dias sucesivos a esta fecha.
+
+al llegar al ultimo dia de cada mes en la columna "Fecha" i.e 31-06-2024 se deben sumar los valores mostrados en cada columna
+
+
+CODIGO PROPORCIONADO POR chatGPT
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+import tkinter as tk
+from tkinter import ttk
+from tkinter import messagebox
+import pandas as pd
+from datetime import datetime, timedelta
+
+class VentasApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Carga de Datos de Ventas Diarias")
+        
+        self.fecha_inicio = datetime(2024, 6, 1)
+        self.ventas_data = pd.DataFrame(columns=["Fecha", "Contado", "Vale Obsec", "MP", "Visa", "V Debit", "OCA", "Maestro", "MasterCard", "Amex", "Total Tarjetas", "Total Contado", "Venta"])
+        
+        self.create_table()
+        self.create_buttons()
+
+    def create_table(self):
+        self.table = ttk.Treeview(self.root)
+        self.table["columns"] = ("Contado", "Vale Obsec", "MP", "Visa", "V Debit", "OCA", "Maestro", "MasterCard", "Amex", "Total Tarjetas", "Total Contado", "Venta")
+        
+        self.table.heading("#0", text="Fecha")
+        self.table.column("#0", width=100)
+        
+        for col in self.table["columns"]:
+            self.table.heading(col, text=col)
+            self.table.column(col, width=100)
+        
+        self.table.pack(padx=10, pady=10)
+
+    def create_buttons(self):
+        btn_frame = tk.Frame(self.root)
+        btn_frame.pack(pady=10)
+
+        btn_cargar = tk.Button(btn_frame, text="Cargar Datos", command=self.cargar_datos)
+        btn_cargar.pack(side=tk.LEFT, padx=5)
+
+        btn_calcular = tk.Button(btn_frame, text="Calcular Totales", command=self.calcular_totales)
+        btn_calcular.pack(side=tk.LEFT, padx=5)
+
+    def cargar_datos(self):
+        fecha = self.fecha_inicio + timedelta(days=len(self.ventas_data))
+        contado = 0  # Aquí deberías obtener los valores ingresados por el usuario para cada tipo de pago
+        vale_obsec = 0
+        mp = 0
+        visa = 0
+        v_debit = 0
+        oca = 0
+        maestro = 0
+        mastercard = 0
+        amex = 0
+        total_tarjetas = visa + v_debit + oca + maestro + mastercard + amex
+        total_contado = contado + vale_obsec + mp
+        venta = total_tarjetas + total_contado
+
+        new_row = {
+            "Fecha": fecha.strftime("%d-%m-%Y"),
+            "Contado": contado,
+            "Vale Obsec": vale_obsec,
+            "MP": mp,
+            "Visa": visa,
+            "V Debit": v_debit,
+            "OCA": oca,
+            "Maestro": maestro,
+            "MasterCard": mastercard,
+            "Amex": amex,
+            "Total Tarjetas": total_tarjetas,
+            "Total Contado": total_contado,
+            "Venta": venta
+        }
+
+        self.ventas_data = self.ventas_data.append(new_row, ignore_index=True)
+        self.update_table()
+
+    def calcular_totales(self):
+        # Aquí debes sumar los valores de las columnas para el último día del mes
+        messagebox.showinfo("Totales", "Totales calculados correctamente")
+
+    def update_table(self):
+        self.table.delete(*self.table.get_children())
+
+        for idx, row in self.ventas_data.iterrows():
+            self.table.insert("", "end", text=row["Fecha"], values=[row[col] for col in self.table["columns"][1:]])
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = VentasApp(root)
+    root.mainloop()
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+el programa ejecuto con exito pero con varios errores, uno de ellos seria que no permite el ingreso de datos por el usuario, se le solicita a chatGPT que agrege esta funcionalidad, asi como la creacion de un archivo SQL para guardar la base de datos.
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+import tkinter as tk
+from tkinter import ttk, simpledialog, messagebox
+import pandas as pd
+import sqlite3
+from datetime import datetime, timedelta
+
+class VentasApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Carga de Datos de Ventas Diarias")
+        
+        self.fecha_inicio = datetime(2024, 6, 1)
+        self.create_table_if_not_exists()
+        
+        self.create_table()
+        self.create_buttons()
+
+    def create_table_if_not_exists(self):
+        conn = sqlite3.connect("ventas.db")
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS ventas (
+                        Fecha TEXT PRIMARY KEY,
+                        Contado REAL,
+                        Vale_Obsec REAL,
+                        MP REAL,
+                        Visa REAL,
+                        V_Debit REAL,
+                        OCA REAL,
+                        Maestro REAL,
+                        MasterCard REAL,
+                        Amex REAL,
+                        Total_Tarjetas REAL,
+                        Total_Contado REAL,
+                        Venta REAL
+                     )''')
+        conn.commit()
+        conn.close()
+
+    def create_table(self):
+        self.table = ttk.Treeview(self.root)
+        self.table["columns"] = ("Contado", "Vale Obsec", "MP", "Visa", "V Debit", "OCA", "Maestro", "MasterCard", "Amex", "Total Tarjetas", "Total Contado", "Venta")
+        
+        self.table.heading("#0", text="Fecha")
+        self.table.column("#0", width=100)
+        
+        for col in self.table["columns"]:
+            self.table.heading(col, text=col)
+            self.table.column(col, width=100)
+        
+        self.table.pack(padx=10, pady=10)
+
+    def create_buttons(self):
+        btn_frame = tk.Frame(self.root)
+        btn_frame.pack(pady=10)
+
+        btn_cargar = tk.Button(btn_frame, text="Cargar Datos", command=self.cargar_datos)
+        btn_cargar.pack(side=tk.LEFT, padx=5)
+
+        btn_calcular = tk.Button(btn_frame, text="Calcular Totales", command=self.calcular_totales)
+        btn_calcular.pack(side=tk.LEFT, padx=5)
+
+    def cargar_datos(self):
+        fecha = self.fecha_inicio + timedelta(days=self.table.index(tk.END))
+
+        contado = self.get_numeric_input("Ingrese el monto en Contado")
+        vale_obsec = self.get_numeric_input("Ingrese el monto en Vale Obsec")
+        mp = self.get_numeric_input("Ingrese el monto en MP")
+        visa = self.get_numeric_input("Ingrese el monto en Visa")
+        v_debit = self.get_numeric_input("Ingrese el monto en V Debit")
+        oca = self.get_numeric_input("Ingrese el monto en OCA")
+        maestro = self.get_numeric_input("Ingrese el monto en Maestro")
+        mastercard = self.get_numeric_input("Ingrese el monto en MasterCard")
+        amex = self.get_numeric_input("Ingrese el monto en Amex")
+        
+        total_tarjetas = visa + v_debit + oca + maestro + mastercard + amex
+        total_contado = contado + vale_obsec + mp
+        venta = total_tarjetas + total_contado
+
+        self.insert_data_to_db(fecha.strftime("%Y-%m-%d"), contado, vale_obsec, mp, visa, v_debit, oca, maestro, mastercard, amex, total_tarjetas, total_contado, venta)
+        self.update_table()
+
+    def get_numeric_input(self, prompt):
+        while True:
+            try:
+                value = simpledialog.askfloat("Ingrese un valor", prompt)
+                if value is None:
+                    return 0  # Si el usuario cancela, se ingresa un valor de 0
+                else:
+                    return value
+            except ValueError:
+                messagebox.showerror("Error", "Por favor, ingrese un valor numérico válido.")
+
+    def insert_data_to_db(self, fecha, contado, vale_obsec, mp, visa, v_debit, oca, maestro, mastercard, amex, total_tarjetas, total_contado, venta):
+        conn = sqlite3.connect("ventas.db")
+        c = conn.cursor()
+        c.execute('''INSERT INTO ventas VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', 
+                    (fecha, contado, vale_obsec, mp, visa, v_debit, oca, maestro, mastercard, amex, total_tarjetas, total_contado, venta))
+        conn.commit()
+        conn.close()
+
+    def calcular_totales(self):
+        conn = sqlite3.connect("ventas.db")
+        c = conn.cursor()
+        c.execute('''SELECT SUM(Contado), SUM(Vale_Obsec), SUM(MP), SUM(Visa), SUM(V_Debit), SUM(OCA), SUM(Maestro), SUM(MasterCard), SUM(Amex), SUM(Total_Tarjetas), SUM(Total_Contado), SUM(Venta) FROM ventas''')
+        total_values = c.fetchone()
+        conn.close()
+
+        messagebox.showinfo("Totales", f"Total Contado: {total_values[0]}, Total Tarjetas: {total_values[1]}, Venta Total: {total_values[2]}")
+
+    def update_table(self):
+        conn = sqlite3.connect("ventas.db")
+        c = conn.cursor()
+        c.execute('''SELECT * FROM ventas''')
+        rows = c.fetchall()
+        conn.close()
+
+        self.table.delete(*self.table.get_children())
+
+        for row in rows:
+            self.table.insert("", "end", text=row[0], values=row[1:])
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = VentasApp(root)
+    root.mainloop()
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+debido a que estas modificaciones rompieron el codigo, Jupyter nos largaba el siguiente error:
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+Exception in Tkinter callback
+Traceback (most recent call last):
+  File "C:\Users\Manuel\anaconda3\Lib\tkinter\__init__.py", line 1948, in __call__
+    return self.func(*args)
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\Manuel\AppData\Local\Temp\ipykernel_7020\2958071848.py", line 74, in cargar_datos
+    self.ventas_data = self.ventas_data.append(new_row, ignore_index=True)
+                       ^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Manuel\anaconda3\Lib\site-packages\pandas\core\generic.py", line 6204, in __getattr__
+    return object.__getattribute__(self, name)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'DataFrame' object has no attribute 'append'
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+le solicitamos a chatGPT que corrigiese el codigo con los datos proporcionados y corregimos el codigo, por lo que ahora tenemos una tabla funcional donde podremos visualizar los valores ingresados y que estos se guarden en un archivo aparte.
