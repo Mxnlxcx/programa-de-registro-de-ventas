@@ -1,0 +1,300 @@
+Arrancamos el segundo dia solicitando a chatGPT agregar la funcionalidad de editar los valores de las filas
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+import tkinter as tk
+from tkinter import ttk, simpledialog, messagebox
+import sqlite3
+from datetime import datetime, timedelta
+import time
+
+class VentasApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Carga de Datos de Ventas Diarias")
+        
+        self.fecha_inicio = datetime(2024, 6, 1)
+        self.create_table_if_not_exists()
+        
+        self.create_table()
+        self.create_buttons()
+        self.update_table()
+
+    def create_table_if_not_exists(self):
+        with sqlite3.connect("database.db") as conn:
+            c = conn.cursor()
+            c.execute('''CREATE TABLE IF NOT EXISTS ventas (
+                            Fecha TEXT PRIMARY KEY,
+                            Contado REAL,
+                            Vale_Obsec REAL,
+                            MP REAL,
+                            Visa REAL,
+                            V_Debit REAL,
+                            OCA REAL,
+                            Maestro REAL,
+                            MasterCard REAL,
+                            Amex REAL,
+                            Total_Tarjetas REAL,
+                            Total_Contado REAL,
+                            Venta REAL
+                         )''')
+            conn.commit()
+
+    def create_table(self):
+        self.table = ttk.Treeview(self.root)
+        self.table["columns"] = ("Contado", "Vale Obsec", "MP", "Visa", "V Debit", "OCA", "Maestro", "MasterCard", "Amex", "Total Tarjetas", "Total Contado", "Venta")
+        
+        self.table.heading("#0", text="Fecha")
+        self.table.column("#0", width=100)
+        
+        for col in self.table["columns"]:
+            self.table.heading(col, text=col)
+            self.table.column(col, width=100)
+        
+        self.table.pack(padx=10, pady=10)
+
+    def create_buttons(self):
+        btn_frame = tk.Frame(self.root)
+        btn_frame.pack(pady=10)
+
+        btn_cargar = tk.Button(btn_frame, text="Cargar Datos", command=self.cargar_datos)
+        btn_cargar.pack(side=tk.LEFT, padx=5)
+
+        btn_editar = tk.Button(btn_frame, text="Editar Datos", command=self.editar_datos)
+        btn_editar.pack(side=tk.LEFT, padx=5)
+
+        btn_calcular = tk.Button(btn_frame, text="Calcular Totales", command=self.calcular_totales)
+        btn_calcular.pack(side=tk.LEFT, padx=5)
+
+    def cargar_datos(self):
+        num_rows = len(self.table.get_children())
+        fecha = self.fecha_inicio + timedelta(days=num_rows)
+
+        contado = self.get_numeric_input("Ingrese el monto en Contado")
+        vale_obsec = self.get_numeric_input("Ingrese el monto en Vale Obsec")
+        mp = self.get_numeric_input("Ingrese el monto en MP")
+        visa = self.get_numeric_input("Ingrese el monto en Visa")
+        v_debit = self.get_numeric_input("Ingrese el monto en V Debit")
+        oca = self.get_numeric_input("Ingrese el monto en OCA")
+        maestro = self.get_numeric_input("Ingrese el monto en Maestro")
+        mastercard = self.get_numeric_input("Ingrese el monto en MasterCard")
+        amex = self.get_numeric_input("Ingrese el monto en Amex")
+        
+        total_tarjetas = visa + v_debit + oca + maestro + mastercard + amex
+        total_contado = contado + vale_obsec + mp
+        venta = total_tarjetas + total_contado
+
+        self.insert_data_to_db(fecha.strftime("%Y-%m-%d"), contado, vale_obsec, mp, visa, v_debit, oca, maestro, mastercard, amex, total_tarjetas, total_contado, venta)
+        self.update_table()
+
+    def get_numeric_input(self, prompt):
+        while True:
+            try:
+                value = simpledialog.askfloat("Ingrese un valor", prompt)
+                if value is None:
+                    return 0  # Si el usuario cancela, se ingresa un valor de 0
+                else:
+                    return value
+            except ValueError:
+                messagebox.showerror("Error", "Por favor, ingrese un valor numérico válido.")
+
+    def insert_data_to_db(self, fecha, contado, vale_obsec, mp, visa, v_debit, oca, maestro, mastercard, amex, total_tarjetas, total_contado, venta):
+        for _ in range(5):  # Reintentar hasta 5 veces si la base de datos está bloqueada
+            try:
+                with sqlite3.connect("database.db") as conn:
+                    c = conn.cursor()
+                    c.execute('''INSERT INTO ventas VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', 
+                                (fecha, contado, vale_obsec, mp, visa, v_debit, oca, maestro, mastercard, amex, total_tarjetas, total_contado, venta))
+                    conn.commit()
+                break
+            except sqlite3.OperationalError:
+                time.sleep(1)
+        else:
+            messagebox.showerror("Error", "No se pudo insertar los datos. La base de datos está bloqueada.")
+
+    def editar_datos(self):
+        fecha_a_modificar = simpledialog.askstring("Editar Datos", "Ingrese la fecha que desea modificar (AAAA-MM-DD)")
+        if fecha_a_modificar:
+            conn = sqlite3.connect("database.db")
+            c = conn.cursor()
+            c.execute('''SELECT * FROM ventas WHERE Fecha = ?''', (fecha_a_modificar,))
+            row = c.fetchone()
+            conn.close()
+            if row:
+                self.editar_fila(row)
+            else:
+                messagebox.showerror("Error", "La fecha ingresada no se encontró en la base de datos.")
+    
+    def editar_fila(self, row):
+        edit_window = tk.Toplevel()
+        edit_window.title("Editar Datos")
+
+        labels = ["Contado", "Vale Obsec", "MP", "Visa", "V Debit", "OCA", "Maestro", "MasterCard", "Amex"]
+        entries = []
+
+        for i, label in enumerate(labels):
+            tk.Label(edit_window, text=label).grid(row=i, column=0, padx=5, pady=5)
+            entry = tk.Entry(edit_window)
+            entry.grid(row=i, column=1, padx=5, pady=5)
+            entry.insert(0, str(row[i+1]))  # Skip Fecha column
+            entries.append(entry)
+
+        btn_save = tk.Button(edit_window, text="Guardar Cambios", command=lambda: self.guardar_cambios(row[0], entries))
+        btn_save.grid(row=len(labels), columnspan=2, padx=5, pady=10)
+
+    def guardar_cambios(self, fecha, entries):
+        values = [float(entry.get()) for entry in entries]
+        total_tarjetas = sum(values[3:9])
+        total_contado = sum(values[:3])
+        venta = total_tarjetas + total_contado
+
+        for _ in range(5):  # Reintentar hasta 5 veces si la base de datos está bloqueada
+            try:
+                with sqlite3.connect("database.db") as conn:
+                    c = conn.cursor()
+                    c.execute('''UPDATE ventas SET Contado=?, Vale_Obsec=?, MP=?, Visa=?, V_Debit=?, OCA=?, Maestro=?, MasterCard=?, Amex=?, Total_Tarjetas=?, Total_Contado=?, Venta=? WHERE Fecha=?''', 
+                                (values[0], values[1], values[2], values[3], values[4], values[5], values[6], values[7], values[8], total_tarjetas, total_contado, venta, fecha))
+                    conn.commit()
+                break
+            except sqlite3.OperationalError:
+                time.sleep(1)
+        else:
+            messagebox.showerror("Error", "No se pudo actualizar los datos. La base de datos está bloqueada.")
+        
+        self.update_table()
+        messagebox.showinfo("Éxito", "Los datos han sido actualizados.")
+    
+    def update_table(self):
+        for row in self.table.get_children():
+            self.table.delete(row)
+
+        conn = sqlite3.connect("database.db")
+        c = conn.cursor()
+        c.execute('''SELECT * FROM ventas''')
+        rows = c.fetchall()
+        conn.close()
+
+        for row in rows:
+            self.table.insert("", tk.END, text=row[0], values=row[1:])
+
+    def calcular_totales(self):
+        conn = sqlite3.connect("database.db")
+        c = conn.cursor()
+        c.execute('''SELECT SUM(Contado), SUM(Vale_Obsec), SUM(MP), SUM(Visa), SUM(V_Debit), SUM(OCA), SUM(Maestro), SUM(MasterCard), SUM(Amex), SUM(Total_Tarjetas), SUM(Total_Contado), SUM(Venta) FROM ventas''')
+        totals = c.fetchone()
+        conn.close()
+
+        total_window = tk.Toplevel()
+        total_window.title("Totales")
+
+        labels = ["Contado", "Vale Obsec", "MP", "Visa", "V Debit", "OCA", "Maestro", "MasterCard", "Amex", "Total Tarjetas", "Total Contado", "Venta"]
+        
+        for i, label in enumerate(labels):
+            tk.Label(total_window, text=label).grid(row=i, column=0, padx=5, pady=5)
+            tk.Label(total_window, text=str(totals[i])).grid(row=i, column=1, padx=5, pady=5)
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = VentasApp(root)
+    root.mainloop()
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+debido a que tuvimos un problema con el archivo de la base de datos generado anteriormente tuvimos que cambiar el nombre de la misma.
+
+la ventana generada para editar los datos de las filas tiene una interfaz mas amigable, permite cargar todos los datos en secuencia y luego guardarlos en lugar de preguntar cada dato en una ventana separada. Por lo que pedimos a chatGPT que cambiase la interfaz de "cargar datos" para que fuese similar a la de "editar datos"
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+import tkinter as tk
+from tkinter import ttk, simpledialog, messagebox
+import sqlite3
+from datetime import datetime, timedelta
+import time
+
+class VentasApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Carga de Datos de Ventas Diarias")
+        
+        self.fecha_inicio = datetime(2024, 6, 1)
+        self.create_table_if_not_exists()
+        
+        self.create_table()
+        self.create_buttons()
+        self.update_table()
+
+    def create_table_if_not_exists(self):
+        with sqlite3.connect("database.db") as conn:
+            c = conn.cursor()
+            c.execute('''CREATE TABLE IF NOT EXISTS ventas (
+                            Fecha TEXT PRIMARY KEY,
+                            Contado REAL,
+                            Vale_Obsec REAL,
+                            MP REAL,
+                            Visa REAL,
+                            V_Debit REAL,
+                            OCA REAL,
+                            Maestro REAL,
+                            MasterCard REAL,
+                            Amex REAL,
+                            Total_Tarjetas REAL,
+                            Total_Contado REAL,
+                            Venta REAL
+                         )''')
+            conn.commit()
+
+    def create_table(self):
+        self.table = ttk.Treeview(self.root)
+        self.table["columns"] = ("Contado", "Vale Obsec", "MP", "Visa", "V Debit", "OCA", "Maestro", "MasterCard", "Amex", "Total Tarjetas", "Total Contado", "Venta")
+        
+        self.table.heading("#0", text="Fecha")
+        self.table.column("#0", width=100)
+        
+        for col in self.table["columns"]:
+            self.table.heading(col, text=col)
+            self.table.column(col, width=100)
+        
+        self.table.pack(padx=10, pady=10)
+
+    def create_buttons(self):
+        btn_frame = tk.Frame(self.root)
+        btn_frame.pack(pady=10)
+
+        btn_cargar = tk.Button(btn_frame, text="Cargar Datos", command=self.cargar_datos)
+        btn_cargar.pack(side=tk.LEFT, padx=5)
+
+        btn_editar = tk.Button(btn_frame, text="Editar Datos", command=self.editar_datos)
+        btn_editar.pack(side=tk.LEFT, padx=5)
+
+        btn_calcular = tk.Button(btn_frame, text="Calcular Totales", command=self.calcular_totales)
+        btn_calcular.pack(side=tk.LEFT, padx=5)
+
+    def cargar_datos(self):
+        num_rows = len(self.table.get_children())
+        fecha = self.fecha_inicio + timedelta(days=num_rows)
+        self.ventana_datos("Cargar Datos", fecha.strftime("%Y-%m-%d"))
+
+    def ventana_datos(self, title, fecha):
+        data_window = tk.Toplevel()
+        data_window.title(title)
+
+        labels = ["Contado", "Vale Obsec", "MP", "Visa", "V Debit", "OCA", "Maestro", "MasterCard", "Amex"]
+        entries = []
+
+        for i, label in enumerate(labels):
+            tk.Label(data_window, text=label).grid(row=i, column=0, padx=5, pady=5)
+            entry = tk.Entry(data_window)
+            entry.grid(row=i, column=1, padx=5, pady=5)
+            entries.append(entry)
+
+        if title == "Cargar Datos":
+            btn_save = tk.Button(data_window, text="Guardar Datos", command=lambda: self.guardar_datos(fecha, entries, data_window))
+        else:
+            btn_save = tk.Button(data_window, text="Guardar Cambios", command=lambda: self.guardar_cambios(fecha, entries, data_window))
+        btn_save.grid(row=len(labels), columnspan=2, padx=5, pady=10)
+
+    def guardar_datos(self, fecha, entries, window):
+        values = [float(entry.get()) for entry in entries]
+        total_tarjetas = sum(values[3:9])
+
